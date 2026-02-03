@@ -1203,12 +1203,7 @@ formatstmt(n: ref Node, indent: int): string
 	out := formatcomments(n.comments, indent);
 	case n.kind {
 	NIf =>
-		out += tabs(indent) + "if" + formattokens(n.header);
-		out += formatstmtbody(n.body, indent);
-		if(n.elsebody != nil){
-			out += tabs(indent) + "else";
-			out += formatstmtbody(n.elsebody, indent);
-		}
+		out += formatif(n, indent, 1);
 	NFor =>
 		out += tabs(indent) + "for" + formattokens(n.header);
 		out += formatstmtbody(n.body, indent);
@@ -1237,11 +1232,31 @@ formatstmt(n: ref Node, indent: int): string
 	return out;
 }
 
+formatif(n: ref Node, indent: int, leadtabs: int): string
+{
+	out := "";
+	if(leadtabs)
+		out += tabs(indent);
+	out += "if" + formattokens(n.header);
+	out += formatstmtbody(n.body, indent);
+	if(n.elsebody != nil){
+		m := hd n.elsebody;
+		if(m.kind == NIf && m.comments == nil){
+			out += tabs(indent) + "else ";
+			out += formatif(m, indent, 0);
+		}else{
+			out += tabs(indent) + "else";
+			out += formatstmtbody(n.elsebody, indent);
+		}
+	}
+	return out;
+}
+
 formatcase(n: ref Node, indent: int): string
 {
 	out := formatcomments(n.comments, indent);
 	out += tabs(indent) + formattokens(n.header) + " {\n";
-	out += formatclauses(n.body, indent+1);
+	out += formatclauses(n.body, indent);
 	out += tabs(indent) + "}\n";
 	return out;
 }
@@ -1307,14 +1322,17 @@ formattokens(toks: array of Token): string
 	out := "";
 	prev: Token;
 	prevok := 0;
+	prevunary := 0;
 	brack := 0;
 	for(i := 0; i < len toks; i++){
 		t := toks[i];
-		if(prevok && needspace(prev, t, brack))
+		curunary := isunaryprefix(prevok, prev, t);
+		if(prevok && needspace(prev, t, brack, prevunary, curunary))
 			out += " ";
 		out += t.text;
 		prev = t;
 		prevok = 1;
+		prevunary = curunary;
 		if(t.kind == TkPunct){
 			if(t.text == "[")
 				brack++;
@@ -1325,15 +1343,15 @@ formattokens(toks: array of Token): string
 	return out;
 }
 
-needspace(a: Token, b: Token, brack: int): int
+needspace(a: Token, b: Token, brack: int, aunary: int, bunary: int): int
 {
 	if(a.kind == TkOp && isincdec(a.text))
 		return 0;
 	if(b.kind == TkOp && isincdec(b.text))
 		return 0;
-	if(a.kind == TkOp && isunaryop(a.text))
+	if(aunary)
 		return 0;
-	if(b.kind == TkOp && isunaryop(b.text))
+	if(bunary)
 		if(!ispostop(a))
 			return 0;
 	if(a.kind == TkOp && isassignop(a.text))
@@ -1378,6 +1396,25 @@ needspace(a: Token, b: Token, brack: int): int
 	if(a.kind == TkOp || b.kind == TkOp)
 		return 1;
 	return 1;
+}
+
+isunaryprefix(prevok: int, prev: Token, cur: Token): int
+{
+	if(cur.kind != TkOp)
+		return 0;
+	if(isunaryop(cur.text))
+		return 1;
+	if(cur.text != "-")
+		return 0;
+	if(!prevok)
+		return 1;
+	if(prev.kind == TkOp)
+		return !ispostop(prev);
+	if(prev.kind == TkPunct && (prev.text == "(" || prev.text == "[" || prev.text == "{" || prev.text == "," || prev.text == ":"))
+		return 1;
+	if(prev.kind == TkKeyword)
+		return 1;
+	return 0;
 }
 
 ispostop(t: Token): int
