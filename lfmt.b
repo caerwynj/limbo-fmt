@@ -812,7 +812,18 @@ parseblock(p: ref Parser): list of ref Node
 			p.next();
 			break;
 		}
-		stmts = parsestmt(p) :: stmts;
+		com := p.leading();
+		t = p.peek();
+		if(t.kind == TkPunct && t.text == "}"){
+			if(com != nil)
+				stmts = ref Node(NRaw, nil, nil, nil, com, 0) :: stmts;
+			p.next();
+			break;
+		}
+		if(com != nil)
+			stmts = parsestmtwith(p, com) :: stmts;
+		else
+			stmts = parsestmt(p) :: stmts;
 	}
 	return revnodes(stmts);
 }
@@ -820,6 +831,11 @@ parseblock(p: ref Parser): list of ref Node
 parsestmt(p: ref Parser): ref Node
 {
 	com := p.leading();
+	return parsestmtwith(p, com);
+}
+
+parsestmtwith(p: ref Parser, com: list of Token): ref Node
+{
 	if(p.matchp("{")){
 		n := ref Node(NBlock, nil, parseblockafteropen(p), nil, com, 0);
 		return n;
@@ -864,7 +880,18 @@ parseblockafteropen(p: ref Parser): list of ref Node
 			p.next();
 			break;
 		}
-		stmts = parsestmt(p) :: stmts;
+		com := p.leading();
+		t = p.peek();
+		if(t.kind == TkPunct && t.text == "}"){
+			if(com != nil)
+				stmts = ref Node(NRaw, nil, nil, nil, com, 0) :: stmts;
+			p.next();
+			break;
+		}
+		if(com != nil)
+			stmts = parsestmtwith(p, com) :: stmts;
+		else
+			stmts = parsestmt(p) :: stmts;
 	}
 	return revnodes(stmts);
 }
@@ -1288,6 +1315,8 @@ formatstmtbody(body: list of ref Node, indent: int): string
 formatline(n: ref Node, indent: int, addsemi: int): string
 {
 	out := formatcomments(n.comments, indent);
+	if(len n.header == 0)
+		return out;
 	out += tabs(indent) + formattokens(n.header);
 	if(addsemi && n.needsemi)
 		out += ";";
