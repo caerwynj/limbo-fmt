@@ -1120,9 +1120,19 @@ collectuntilop(p: ref Parser, op: string): array of Token
 
 isclausestart(p: ref Parser): int
 {
+	t := p.peek();
+	if(t.kind == TkKeyword){
+		case t.text {
+		"if" or "for" or "while" or "do" or "case" or "alt" or "pick" or
+		"return" or "break" or "continue" or "exit" or "raise" or "spawn" =>
+			return 0;
+		}
+	}
+	if(t.kind == TkPunct && t.text == "{")
+		return 0;
 	depth := 0;
 	for(i := p.i; i < len p.toks; i++){
-		t := p.toks[i];
+		t = p.toks[i];
 		if(t.kind == TkEOF)
 			return 0;
 		if(t.kind == TkPunct){
